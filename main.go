@@ -47,6 +47,14 @@ func queryTotalCommitsToday(client *githubv4.Client, username string) (CommitsQu
 	return query, nil
 }
 
+func getTotalCommitsToday(query CommitsQuery) int {
+	totalCommits := 0
+	for _, repo := range query.User.ContributionsCollection.CommitContributionsByRepository {
+		totalCommits += repo.Contributions.TotalCount
+	}
+	return totalCommits
+}
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -68,10 +76,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	totalCommits := 0
-	for _, repo := range query.User.ContributionsCollection.CommitContributionsByRepository {
-		totalCommits += repo.Contributions.TotalCount
-	}
+	totalCommits := getTotalCommitsToday(query)
 
 	fmt.Println("Commits hoje:", totalCommits)
 
