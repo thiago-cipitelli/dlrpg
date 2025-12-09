@@ -79,11 +79,4 @@ func main() {
 	totalCommits := getTotalCommitsToday(query)
 
 	fmt.Println("Commits hoje:", totalCommits)
-
-	fmt.Println("\nDetalhado por repositório:")
-	for _, repo := range query.User.ContributionsCollection.CommitContributionsByRepository {
-		fmt.Printf("- %s: %d commits\n",
-			repo.Repository.Name,
-			repo.Contributions.TotalCount)
-	}
 }
