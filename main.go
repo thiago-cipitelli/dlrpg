@@ -5,40 +5,70 @@ import (
 	"fmt"
 	"log"
 	"os"
-
 	"time"
 
-	"github.com/google/go-github/github"
 	"github.com/joho/godotenv"
+	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 )
 
 func main() {
 	err := godotenv.Load()
-	private_key := os.Getenv("GITHUB_APP_PRIVATE_KEY")
-
-	ctx := context.Background()
-
-	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: string(private_key)})
-	tc := oauth2.NewClient(ctx, ts)
-
-	client := github.NewClient(tc)
-
-	events, _, err := client.Activity.ListEventsPerformedByUser(ctx, "thiago-cipitelli", true, nil)
 	if err != nil {
-		fmt.Printf("deu erro")
-		log.Fatal()
+		log.Fatal("Erro ao carregar .env")
 	}
 
-	today := time.Now().UTC().Format("2006-01-02")
+	githubToken := os.Getenv("GITHUB_TOKEN")
+	username := os.Getenv("GITHUB_USER")
+	if githubToken == "" || username == "" {
+		log.Fatal("Defina GITHUB_TOKEN e GITHUB_USER no .env")
+	}
 
-	for _, e := range events {
-		if *e.Type == "PushEvent" {
-			fmt.Println(e.CreatedAt.Format("2006-01-02"))
-			if e.CreatedAt.Format("2006-01-02") == today {
-				fmt.Println(string(e.GetRawPayload()))
-				fmt.Printf("oi")
-			}
-		}
+	src := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: githubToken})
+	httpClient := oauth2.NewClient(context.Background(), src)
+	client := githubv4.NewClient(httpClient)
+
+	now := time.Now().UTC()
+	from := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	to := from.Add(24 * time.Hour)
+
+	var query struct {
+		User struct {
+			ContributionsCollection struct {
+				CommitContributionsByRepository []struct {
+					Contributions struct {
+						TotalCount int
+					}
+					Repository struct {
+						Name string
+					}
+				}
+			} `graphql:"contributionsCollection(from: $from, to: $to)"`
+		} `graphql:"user(login: $login)"`
+	}
+
+	variables := map[string]interface{}{
+		"login": githubv4.String(username),
+		"from":  githubv4.DateTime{Time: from},
+		"to":    githubv4.DateTime{Time: to},
+	}
+
+	err = client.Query(context.Background(), &query, variables)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	totalCommits := 0
+	for _, repo := range query.User.ContributionsCollection.CommitContributionsByRepository {
+		totalCommits += repo.Contributions.TotalCount
+	}
+
+	fmt.Println("Commits hoje:", totalCommits)
+
+	fmt.Println("\nDetalhado por repositório:")
+	for _, repo := range query.User.ContributionsCollection.CommitContributionsByRepository {
+		fmt.Printf("- %s: %d commits\n",
+			repo.Repository.Name,
+			repo.Contributions.TotalCount)
 	}
 }
