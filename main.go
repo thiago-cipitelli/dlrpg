@@ -12,6 +12,41 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type CommitsQuery struct {
+	User struct {
+		ContributionsCollection struct {
+			CommitContributionsByRepository []struct {
+				Contributions struct {
+					TotalCount int
+				}
+				Repository struct {
+					Name string
+				}
+			}
+		} `graphql:"contributionsCollection(from: $from, to: $to)"`
+	} `graphql:"user(login: $login)"`
+}
+
+func queryTotalCommitsToday(client *githubv4.Client, username string) (CommitsQuery, error) {
+	now := time.Now().UTC()
+	from := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	to := from.Add(24 * time.Hour)
+
+	var query CommitsQuery
+
+	variables := map[string]interface{}{
+		"login": githubv4.String(username),
+		"from":  githubv4.DateTime{Time: from},
+		"to":    githubv4.DateTime{Time: to},
+	}
+
+	err := client.Query(context.Background(), &query, variables)
+	if err != nil {
+		return query, err
+	}
+	return query, nil
+}
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -28,32 +63,7 @@ func main() {
 	httpClient := oauth2.NewClient(context.Background(), src)
 	client := githubv4.NewClient(httpClient)
 
-	now := time.Now().UTC()
-	from := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	to := from.Add(24 * time.Hour)
-
-	var query struct {
-		User struct {
-			ContributionsCollection struct {
-				CommitContributionsByRepository []struct {
-					Contributions struct {
-						TotalCount int
-					}
-					Repository struct {
-						Name string
-					}
-				}
-			} `graphql:"contributionsCollection(from: $from, to: $to)"`
-		} `graphql:"user(login: $login)"`
-	}
-
-	variables := map[string]interface{}{
-		"login": githubv4.String(username),
-		"from":  githubv4.DateTime{Time: from},
-		"to":    githubv4.DateTime{Time: to},
-	}
-
-	err = client.Query(context.Background(), &query, variables)
+	query, err := queryTotalCommitsToday(client, username)
 	if err != nil {
 		log.Fatal(err)
 	}
