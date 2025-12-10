@@ -28,8 +28,9 @@ type CommitsQuery struct {
 }
 
 func queryTotalCommitsToday(client *githubv4.Client, username string) (CommitsQuery, error) {
-	now := time.Now().UTC()
-	from := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	loc, _ := time.LoadLocation("America/Sao_Paulo")
+	now := time.Now().In(loc)
+	from := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 	to := from.Add(24 * time.Hour)
 
 	var query CommitsQuery
